@@ -29,3 +29,4 @@ local.properties
 Thumbs.db
 __pycache__/
 *.pyc
+FPSMatch/
