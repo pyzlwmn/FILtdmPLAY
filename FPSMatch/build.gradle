@@ -1,0 +1,97 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    alias libs.plugins.modDevGradleLegacy
+    alias libs.plugins.kotlinDevGradleLegacy
+    alias libs.plugins.lombokLegacy
+    alias libs.plugins.kotlinLombokLegacy
+    alias libs.plugins.spotless
+}
+
+allprojects {
+    group = 'net.ptcrys'
+}
+
+def isRelease = System.getenv('RELEASE_BUILD') == 'true'
+def buildDate = new Date()
+def year = String.format('%ty', buildDate)
+def month = buildDate.month + 1
+def day = buildDate.date
+def dynamicVersion
+if (isRelease) {
+    dynamicVersion = "${mod_major_version}.${year}.${month}.${day}"
+} else {
+    dynamicVersion = "${mod_major_version}.${year}.${month}-SNAPSHOT"
+}
+ext.mod_version = dynamicVersion
+version = dynamicVersion
+group = mod_group_id
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+apply from: "$projectDir/gradle/scripts/moddevgradle.gradle"
+apply from: "$projectDir/dependencies.gradle"
+apply from: "$projectDir/gradle/scripts/resources.gradle"
+apply from: "$projectDir/gradle/scripts/jars.gradle"
+apply from: "$projectDir/gradle/scripts/repositories.gradle"
+apply from: "$projectDir/gradle/scripts/spotless.gradle"
+
+generateModMetadata.doFirst {
+    mkdir('run/client')
+    mkdir('run/server')
+    mkdir('run/clientData')
+    mkdir('run/serverTest')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    options.compilerArgs << "-Xlint:-deprecation" << "-Xlint:-removal"
+}
+
+jar{
+    exclude "**/.cache"
+    exclude "**/SimplifiedToTraditional.properties"
+}
+
+java {
+    withSourcesJar()
+}
+
+// Maven publication
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        if (isRelease) {
+            maven {
+                name = "PtcrysReleases"
+                url = uri("https://maven.ptcrys.net/releases")
+                credentials {
+                    username = project.findProperty('ptcrysUsername')
+                    password = project.findProperty('ptcrysPassword')
+                }
+            }
+        } else {
+            maven {
+                name = "PtcrysSnapshots"
+                url = uri("https://maven.ptcrys.net/snapshots")
+                credentials {
+                    username = project.findProperty('ptcrysUsername')
+                    password = project.findProperty('ptcrysPassword')
+                }
+            }
+        }
+    }
+}

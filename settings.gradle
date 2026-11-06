@@ -1,0 +1,33 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+}
+
+rootProject.name = 'filtdm'
+
+// ★ FPSMatch 以源码形式编进项目（先做：git submodule add https://github.com/PhasetransCrystal/FPSMatch.git FPSMatch）
+includeBuild('FPSMatch') {
+    dependencySubstitution {
+        substitute module('com.ptcrys:fpsmatch') using project(':')
+    }
+}
+
+// FPSMatch 是 Kotlin 工程（kotlin-jvm 插件），composite build 会带出
+// org.jetbrains.kotlin.platform.type=jvm 属性 → 与主工程属性不匹配导致变体歧义。
+// 给主工程也加上同样的属性即可消歧义（用字符串字面量，避免与其他插件冲突）。
+gradle.allprojects { p ->
+    p.configurations.configureEach {
+        attributes {
+            attribute(Attribute.of("org.jetbrains.kotlin.platform.type", String), "jvm")
+        }
+    }
+}
