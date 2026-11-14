@@ -1,51 +1,89 @@
-# FIL Team Deathmatch —— FPSMatch 联动版构建文件（给向导生成的项目用）
+# FILTdm团队竞技—— 基于 FPSMatch 的玩法追加模组
 
-适用：IDEA「Minecraft Development」向导生成的项目（MC 1.20.1 / Forge 47.4.23 / mod_id=filtdm / group=com.github.pyzlwmn）
+为 **我的世界 1.20.1 + Forge** 打造的团队竞技玩法，基于 [FPSMatch](https://github.com/PhasetransCrystal/FPSMatch) 框架开发。
 
-## 为什么要换
+- 玩法类型（game type）
+- - 5 v 5 团队竞技 ： `tdm`
+- - 2 v 2 搭档模式 ： `solo`
+- - 1 v 1 单挑 ： `pair`
+- mod id：`filtdm`
 
-向导给的是 **ForgeGradle** 骨架（`net.minecraftforge.gradle`）。FPSMatch 官方（作者的 BlockOffensive / GradleTemplate）用的是 **ModDevGradle 的 legacyforge 变体**，这个插件提供 `modImplementation`。
-- 「`modImplementation` 是 Fabric 专有」只对老的 ForgeGradle 6 成立 → 那才要 `implementation fg.deobf(...)`
-- 用 legacyforge + composite build 编译 FPSMatch 源码，dev 环境不加载生产 jar → 顺手绕开 1.2.5 时代的 mixin `@Shadow m_91277_` 崩溃
+## 依赖
 
-## 替换步骤
+| 项 | 版本 |
+|---|---|
+| Minecraft | `1.20.1` |
+| Forge | `47.4.10+` |
+| **FPSMatch** | `1.26.9-SNAPSHOT`（`net.ptcrys:FPSMatch`，客户端/服务端需同版本） |
+| Kotlin for Forge | `4.11.0`（必需） |
+| Modern UI | `1.20.1-3.12.0.1`（仅客户端需要） |
+| TaCZ（枪械） | `1.1.7-hotfix` |
 
-1. **建项目**：向导照你截图那样建（路径别填成 `E:\FilTdm` 又取名 FilTdm，会套两层）。Mixins 勾不勾都行。
 
-2. **盖掉两个文件**（整个替换）：
-   - `build.gradle` ← 本目录的 build.gradle
-   - `settings.gradle` ← 本目录的 settings.gradle
+## 玩法
 
-3. **mods.toml**：把你的 `src/main/resources/META-INF/mods.toml` 用本目录的同名文件覆盖（或只把里面 `fpsmatch` / `ldlib2` / `modernui` 三个依赖块抄进去）——**不加这些，runClient 会报 Missing mandatory dependencies**。
+**对局**
 
-4. **拿到 FPSMatch 源码**（composite build 必需，目录名必须叫 `FPSMatch`）：
-   ```
-   cd 项目根目录
-   git submodule add https://github.com/PhasetransCrystal/FPSMatch.git FPSMatch
-   git submodule update --init --recursive
-   ```
-   没 git：`git clone https://github.com/PhasetransCrystal/FPSMatch.git FPSMatch`
+- 两队对抗，按击杀数（默认 30）或时间（5 分钟）判定胜负
+- 开局前有倒计时，期间免疫伤害；结束后展示 MVP/SVP 与结算
+- 两种开始方式：对局满人 或 OP 用 `debug start`
+- 死亡 / 退出地图 → 自动返回出生点
 
-5. **（可选）Gradle 版本**：legacyforge 2.0.140 建议 Gradle ≥ 8.8。项目里跑：
-   ```
-   gradlew wrapper --gradle-version 8.14.5
-   ```
+**HUD**
 
-6. **Sync + 运行**：
-   - IDEA → Gradle 面板刷新（会下 moddev 插件、映射、Parchment）
-   - `Tasks > runs > runClient`（或命令行 `gradlew.bat runClient`）
-   - 首次很慢（10 分钟起），跑起来后进单人世界 `/fpsm help` 验证
+- 屏幕上方常驻比分板（双方头像数 + 目标 + 剩余时间），击杀提示带武器图标
+- Tab 计分板：比分 / 剩余时间 / 头像 / 击杀 / 死亡 / 助攻 / 伤害
 
-## 勾了 Mixins 的话
+**背包装配（loadout）**
 
-放开 `build.gradle` 里被注释的 `mixin { ... }` 两行，并确认你的 `src/main/resources/filtdm.mixins.json` 里 `refmap` 写的是 `filtdm.refmap.json`。
-自己写 mixin 时：`@Shadow` / `@Inject` 目标一律用 **Mojang 可读名**（如 `startUseItem`），**别写 SRG 名**（`m_91277_`）。
+- 槽位固定：`1` 主武器 / `2` 副武器 / `3` 道具 / `4` 道具 / `5` 战术
+- 配置文件 `config/filtdm/loadout.json`，每个槽位写有哪些枪、弹药、配件、射击模式等，热重载，默认见示例
+- **多背包**：每名玩家可建多个背包，各自独立，最多 5 个
+- 默认按 **`;`** 打开编辑界面（仅准备阶段可用）
 
-## 备选：不拉源码，直接吃生产 jar
+**配件**
 
-删掉 `settings.gradle` 里的 `includeBuild('FPSMatch')` 整段，`build.gradle` 里换成：
-```gradle
-modImplementation 'curse.maven:fpsmatch-1331710:7109977'   // 1.2.5
-// modImplementation files('libs/fpsmatch-1.20.1-1.3.0-forge-snapshot.jar')
-```
-⚠️ 这时 dev 跑 client 有 mixin 崩溃风险（1.2.5 需要 dev 修补 jar：https://ffsmcserver.top/fpsmatch-dev/fpsmatch-1.2.5-dev.jar）
+- 完整的配件编辑页：右侧 3D 枪械预览，可旋转、查看枪口 / 枪托 / 握把 / 激光 / 扩容弹匣等，只有**已安装枪械的槽位**可选
+- 配件池走 **TaCZ 原生配件表**，关闭了自动择装配池
+
+**背包与对局**
+
+- 一名玩家最多5个背包，可配置5个槽位
+- 可自定义枪械改装
+
+## 本次更新
+
+
+
+
+
+**工程**
+
+- 包名统一重构为 `filtdm`，旧包已完全移除
+
+**更新**
+- 添加玩法单挑、搭档模式，重排ui
+- 皮肤系统：皮肤系统可配合外部脚本挂到服务端（本mod使用kubejs，需要教程私信作者）
+- 加入队伍时自动**清空背包并切换到冒险模式**；每轮重置、死亡复活同样执行一遍
+- 添加 ***死亡动画*** 与 ***尸体***
+- 配件编辑添加枪械数据面板
+- 添加 ***血量*** 与 ***物品栏*** 自定义ui
+- 添加 ***战术小地图***（对的，真战术）
+- 添加自定义ui和战术小地图的设置ui
+
+## 授权
+
+**GPL-3.0**（见 `LICENSE`）。
+
+本项目基于 [FPSMatch](https://github.com/PhasetransCrystal/FPSMatch)（GPL-3.0）与 [BlockOffensive](https://github.com/PhasetransCrystal/BlockOffensive)（GPL-3.0）开发，属衍生作品，遵循 GPL-3.0 要求以 GPL-3.0 开源。代码实现参考了 BlockOffensive 的实现。
+
+## 链接 / 参考 / 致谢
+
+- [FPSMatch](https://github.com/PhasetransCrystal/FPSMatch) —— 对局框架（地图 / 队伍 / 计分 / HUD）
+- [BlockOffensive](https://github.com/PhasetransCrystal/BlockOffensive) —— 玩法实现参考
+- [TaCZ (Timeless and Classics Zero)](https://github.com/MCModder-Zero/TimelessAndClassicsZero) —— 枪械
+- FPSMatch 作者提供的技术支持
+
+## 作者
+
+- pyzlwmn4031
