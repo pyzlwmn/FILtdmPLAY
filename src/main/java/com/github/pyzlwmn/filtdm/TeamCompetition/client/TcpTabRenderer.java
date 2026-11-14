@@ -118,7 +118,7 @@ public class TcpTabRenderer implements TabRenderer {
         int x = -panelW / 2;
         int y = -panelH / 2;
 
-        g.fill(x, y, x + panelW, y + panelH, C_BG);
+        UiDraw.panelEx(g, x, y, panelW, panelH, 8, 0x663A465A, 0xE8121A24, 0xE8090E15, 0x55FFC93C);
 
         UiDraw.panelEx(g, x, y, panelW, panelH, UiDraw.RADIUS_LARGE,
                 0xFF2A3A4A, 0xF0141D2A, 0xE60C121B, C_GOLD);
@@ -159,10 +159,10 @@ public class TcpTabRenderer implements TabRenderer {
         int barW = 120;
         int barX = x + panelW - PAD - barW;
         int barY = hY + 14;
-        g.fill(barX, barY, barX + barW, barY + BAR_H, C_TRACK);
+        UiDraw.fillRounded(g, barX, barY, barW, BAR_H, 2, C_TRACK);
         int limit = TcpHudData.timeLimit() > 0 ? TcpHudData.timeLimit() : Math.max(1, TcpHudData.displaySeconds());
         float pct = Math.max(0f, Math.min(1f, (float) TcpHudData.displaySeconds() / limit));
-        g.fill(barX, barY, barX + Math.round(barW * pct), barY + BAR_H, C_GOLD);
+        UiDraw.fillRounded(g, barX, barY, Math.max(1, Math.round(barW * pct)), BAR_H, 2, C_GOLD);
         UiDraw.iconClock(g, barX - 8, barY + 2, 5, 0xCCFFC93C);
 
         int colY = y + HEAD_H;
@@ -197,9 +197,9 @@ public class TcpTabRenderer implements TabRenderer {
         int tw = colW - 14;
         int tx = colX + 7;
         int ty = colY + 17;
-        g.fill(tx, ty, tx + tw, ty + BAR_H, C_TRACK);
+        UiDraw.fillRounded(g, tx, ty, tw, BAR_H, 2, C_TRACK);
         float tp = Math.max(0f, Math.min(1f, (float) score / Math.max(1, target)));
-        g.fill(tx, ty, tx + Math.round(tw * tp), ty + BAR_H, color);
+        UiDraw.fillRounded(g, tx, ty, Math.max(1, Math.round(tw * tp)), BAR_H, 2, color);
 
         int nameY = colY + TEAM_HEAD_H;
         int cx = colX + 7;

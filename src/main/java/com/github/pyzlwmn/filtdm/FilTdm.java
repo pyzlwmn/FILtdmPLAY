@@ -68,6 +68,8 @@ public class FilTdm {
         modEventBus.addListener(this::addCreative);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // ★ v80：客户端显示配置（雷达大小/位置、自定义物品栏）
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

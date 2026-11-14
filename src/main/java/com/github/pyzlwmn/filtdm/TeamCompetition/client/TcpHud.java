@@ -231,8 +231,7 @@ public class TcpHud implements IHudRenderer {
         int x = (screenWidth - w) / 2;
         int y = (screenHeight - h) / 2;
 
-        g.fill(x, y, x + w, y + h, 0xE0101620);
-        g.fill(x, y, x + w, y + 2, C_GOLD);
+        UiDraw.panelEx(g, x, y, w, h, 8, C_BORDER_GOLD, 0xE8121A24, 0xE8090E15, C_GOLD);
 
         String title = "对 局 结 束";
         g.drawString(font, title, x + (w - font.width(title)) / 2, y + 8, C_GOLD, true);
@@ -297,8 +296,8 @@ public class TcpHud implements IHudRenderer {
 
             if (y + FEED_H > screenHeight - 4) break;
 
-            g.fill(x, y, right, y + FEED_H, C_BG);
-            g.fill(x, y, x + FEED_BAR_W, y + FEED_H, killerColor);
+            UiDraw.fillRounded(g, x, y, w, FEED_H, 4, C_BG);
+            UiDraw.fillRounded(g, x, y, FEED_BAR_W, FEED_H, 2, killerColor);
 
             int textY = y + (FEED_H - 8) / 2;
             int cur = x + FEED_BAR_W + 4;

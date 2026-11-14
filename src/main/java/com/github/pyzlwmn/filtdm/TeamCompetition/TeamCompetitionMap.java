@@ -178,6 +178,10 @@ public class TeamCompetitionMap extends BaseMap {
     /** ★ v67 需求四：本轮已经清过背包的玩家（每轮重置/开局清空） */
     private final Set<UUID> resetDoneThisRound = new HashSet<>();
 
+    /** ★ v80：战术地图同步器（先内嵌在 filtdm，后面要拆独立 mod 时整包搬走） */
+    private final com.github.pyzlwmn.filtdm.TeamCompetition.tactical.TacticalMapTracker tacticalMapTracker =
+            new com.github.pyzlwmn.filtdm.TeamCompetition.tactical.TacticalMapTracker();
+
     /** tdm 用：每队人数走 teamLimit 设置 */
     public TeamCompetitionMap(ServerLevel serverLevel, String mapName, AreaData areaData) {
         this(serverLevel, mapName, areaData, TYPE, 0);
@@ -497,6 +501,12 @@ public class TeamCompetitionMap extends BaseMap {
         // ★ v73：尸体兜底清理（每 tick，无论是否开局都跑，防残留）
         try {
             com.github.pyzlwmn.filtdm.TeamCompetition.server.TcpCorpseManager.tick(getServerLevel());
+        } catch (RuntimeException ignored) {
+        }
+
+        // ★ v80：战术地图（内部自带间隔节流 + 只在开局期间同步）
+        try {
+            tacticalMapTracker.tick(this);
         } catch (RuntimeException ignored) {
         }
 
@@ -847,17 +857,43 @@ public class TeamCompetitionMap extends BaseMap {
         int now = getServerLevel().getServer().getTickCount();
         for (ServerTeam team : getMapTeams().getNormalTeams()) {
             for (ServerPlayer player : team.getOnline()) {
-                if (!player.isAlive() || player.isDeadOrDying()) {
-                    if (!pendingRespawn.containsKey(player.getUUID())) {
-                        LOGGER.info("[TDM] 检测到 {} 死亡 → 安排送回本队出生点", player.getName().getString());
-                    }
-                    if (frozenDebug.add(player.getUUID())) {
-                        LOGGER.info("[TDM·死亡] 命中 {} alive={} dying={} spectator={} hp={} delay={} immediate={}",
+                // ★ v74 修 bug（死亡动画不生效）：
+                //   上游 FPSMatch 的 FPSMDeathPipelineEventHook 在 LivingDeathEvent 里直接
+                //   event.setCanceled(true) + setHealth(max)，玩家从来不会真死 → isDeadOrDying() 永远 false。
+                //   老代码只认「死了」，所以整条死亡冻结链一次都没跑起来（日志都没有），
+                //   表现就是「死亡动画不生效」。这里改成三条任一命中就进入死亡冻结：
+                //     ① 血量为 0 / isDeadOrDying（真死，比如被别的模组打死）
+                //     ② 已经被切到旁观（下面 freezeOnDeath 会切，防重复触发）
+                //     ③ ★ 本轮被击杀过（rememberKiller 记过）且还没冻结/没复活
+                UUID id = player.getUUID();
+                boolean reallyDead = !player.isAlive() || player.isDeadOrDying();
+                boolean killedThisRound = lastKillerOf.containsKey(id);
+                boolean frozen = deathFrozen.contains(id);
+
+                if (reallyDead && !pendingRespawn.containsKey(id)) {
+                    LOGGER.info("[TDM] 检测到 {} 死亡 → 安排送回本队出生点", player.getName().getString());
+                }
+                if (reallyDead) {
+                    if (frozenDebug.add(id)) {
+                        LOGGER.info("[TDM·死亡] 真死命中 {} alive={} dying={} spectator={} hp={}",
                                 player.getName().getString(), player.isAlive(), player.isDeadOrDying(),
-                                player.isSpectator(), player.getHealth(),
-                                respawnDelaySeconds.get(), immediateRespawn.get());
+                                player.isSpectator(), player.getHealth());
                     }
-                    pendingRespawn.put(player.getUUID(), now);
+                    pendingRespawn.put(id, now);
+                    freezeOnDeath(player);
+                    continue;
+                }
+
+                // FPSMatch 取消死亡事件后的「假活」路径：靠击杀记录兜底
+                if (killedThisRound && !frozen) {
+                    if (frozenDebug.add(id)) {
+                        LOGGER.info("[TDM·死亡] 击杀兜底命中 {} （上游取消了死亡事件）hp={} spectator={} delay={} immediate={}",
+                                player.getName().getString(), player.getHealth(),
+                                player.isSpectator(), respawnDelaySeconds.get(), immediateRespawn.get());
+                    }
+                    // 注意：这里不往 pendingRespawn 塞，复活完全交给 processDeathFreeze
+                    // （它到点会 respawnBackToSpawn + 清 lastKillerOf），
+                    // 否则两条复活链会互相打架。
                     freezeOnDeath(player);
                 }
             }
@@ -958,6 +994,8 @@ public class TeamCompetitionMap extends BaseMap {
                 //   一直是 false，原来的 respawn() 从不执行 → 血是满的，但位置还停在尸体点。
                 //   现在统一走 respawnBackToSpawn，把它传回队伍出生点。
                 respawnBackToSpawn(player);
+                // ★ v74：清掉击杀记录，否则 scanForDeaths 的「击杀兜底」会一直命中 → 反复冻结
+                lastKillerOf.remove(id);
                 LOGGER.info("[TDM] {} 复活延迟结束 → 传回出生点", player.getName().getString());
             } catch (RuntimeException ex) {
                 LOGGER.warn("[TDM] {} 放回复活失败：{}", player.getName().getString(), ex.toString());
@@ -1100,6 +1138,27 @@ public class TeamCompetitionMap extends BaseMap {
             protectUntilTick.put(player.getUUID(),
                     getServerLevel().getServer().getTickCount() + sec * 20);
         }
+    }
+
+    /**
+     * ★ v74：由击杀事件直接驱动死亡冻结（不再指望 isDeadOrDying）。
+     *
+     * <p>上游 FPSMatch 的 FPSMDeathPipelineEventHook 会 cancel 掉 LivingDeathEvent 并回满血，
+     * 所以从服务端状态上根本看不出「他死了」；唯一可靠的信号是击杀事件本身。
+     *
+     * @return 本次是否真的新进入了冻结（已冻结/未开局返回 false）
+     */
+    public boolean startDeathFreeze(ServerPlayer player) {
+        if (player == null) return false;
+        if (!isStart) return false;
+        if (getMapTeams().getTeamByPlayer(player).isEmpty()) return false;
+        freezeOnDeath(player);
+        return deathFrozen.contains(player.getUUID());
+    }
+
+    /** ★ v74：日志用 */
+    public int respawnDelaySeconds() {
+        return respawnDelaySeconds.get();
     }
 
     public boolean isProtected(UUID id) {
@@ -1305,6 +1364,11 @@ public class TeamCompetitionMap extends BaseMap {
         if (team == redTeam) return TcpKillFeedS2CPacket.TEAM_RED;
         if (team == blueTeam) return TcpKillFeedS2CPacket.TEAM_BLUE;
         return TcpKillFeedS2CPacket.TEAM_NONE;
+    }
+
+    /** ★ v80：战术地图只在正式开局期间同步（赛后 / 准备阶段不发）。 */
+    public boolean tacticalMapRunning() {
+        return isStart && !postMatch && !gameEnded;
     }
 
     public void msg(String text) {

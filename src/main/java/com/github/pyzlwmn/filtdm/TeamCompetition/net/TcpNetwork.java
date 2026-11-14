@@ -151,6 +151,16 @@ public final class TcpNetwork {
                     ctx.get().setPacketHandled(true);
                 },
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        // ★ v80：战术地图（队友常驻 / 敌人仅可见时同步）
+        CHANNEL.registerMessage(id++, TcpTacticalMapS2CPacket.class,
+                TcpTacticalMapS2CPacket::encode,
+                TcpTacticalMapS2CPacket::decode,
+                (msg, ctx) -> {
+                    ctx.get().enqueueWork(() -> msg.handle(ctx.get()));
+                    ctx.get().setPacketHandled(true);
+                },
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 
     public static void sendToPlayer(ServerPlayer player, Object msg) {

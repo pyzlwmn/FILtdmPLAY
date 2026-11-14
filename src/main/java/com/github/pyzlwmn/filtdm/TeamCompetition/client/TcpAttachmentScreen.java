@@ -1,6 +1,7 @@
 package com.github.pyzlwmn.filtdm.TeamCompetition.client;
 
 import com.github.pyzlwmn.filtdm.TeamCompetition.loadout.GunItemFactory;
+import com.github.pyzlwmn.filtdm.TeamCompetition.loadout.GunStats;
 import com.github.pyzlwmn.filtdm.TeamCompetition.loadout.LoadoutConfig;
 import com.github.pyzlwmn.filtdm.TeamCompetition.net.TcpAttachmentSelectC2SPacket;
 import com.github.pyzlwmn.filtdm.TeamCompetition.net.TcpAttachmentS2CPacket;
@@ -17,7 +18,9 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TcpAttachmentScreen extends Screen {
 
@@ -58,6 +61,10 @@ public class TcpAttachmentScreen extends Screen {
 
     private String hoverType = null;
     private String hoverId = null;
+
+    /** v74：悬停预览时客户端自己算一份「改后数值」，跟服务端发来的「当前数值」做对比条 */
+    private String statCacheKey = "";
+    private List<GunStats.Stat> statHover = List.of();
 
     private final List<AbstractWidget> listButtons = new ArrayList<>();
     private final List<String[]> listButtonIds = new ArrayList<>();
@@ -115,7 +122,14 @@ public class TcpAttachmentScreen extends Screen {
         int leftColW = Math.max(60, Math.min(LEFT_W, panelW / 2 - 24));
 
         int rowCount = Math.max(1, (guns.size() + 1) / 2);
-        int previewH = Math.max(70, Math.min(PREVIEW_H, panelH - 96 - rowCount * 15));
+        // ★ v74：给数值面板留位置（最多 7 行 × 12px + 表头 ≈ 96px）
+        int statRows = 1;
+        for (TcpAttachmentS2CPacket.GunEntry ge : guns) {
+            statRows = Math.max(statRows, Math.min(7, ge.stats().size()));
+        }
+        int statPanelH = statRows * 12 + 22;
+        int previewH = Math.max(70, Math.min(PREVIEW_H,
+                panelH - 96 - rowCount * 15 - statPanelH));
 
         this.pvX = left + 10;
         this.pvY = top + 30;
@@ -337,7 +351,104 @@ public class TcpAttachmentScreen extends Screen {
             }
         }
 
+        // ★ v74：数值面板（画在预览框和说明文字之间，不抢配件列表的地盘）
+        drawStats(g, gun, px, py, leftColW, previewH);
+
         super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    /**
+     * v74 数值面板：
+     * <ul>
+     *   <li>左列 —— 枪名 + 每条数值</li>
+     *   <li>悬停某个配件时，右侧显示「改后值」和 ↑绿/↓红 的差值</li>
+     * </ul>
+     * 数值来自服务端（当前生效配件）；悬停对比值在客户端用同一个 GunStats 反射算一遍。
+     */
+    private void drawStats(GuiGraphics g, TcpAttachmentS2CPacket.GunEntry gun,
+                           int px, int py, int previewW, int previewH) {
+        List<TcpAttachmentS2CPacket.StatEntry> stats = gun.stats();
+        int w = Math.max(previewW, 150);
+        int x = px;
+        int y = py + previewH + 2;
+        int rows = 1 + Math.max(1, stats.size());
+        int panelH = rows * 12 + 8;
+
+        UiDraw.fillRounded(g, x, y, w, panelH, UiDraw.RADIUS_MEDIUM, 0xFF1B2634);
+        UiDraw.fillRounded(g, x, y, w, 14, UiDraw.RADIUS_MEDIUM, 0xFF243445);
+
+        String title = "数值面板";
+        g.drawString(this.font, title, x + 5, y + 3, 0xFFFFC93C, false);
+
+        if (stats.isEmpty()) {
+            g.drawString(this.font, "（TaCZ 未装 / 读不到数值）",
+                    x + 5, y + 17, 0xFF8090A0, false);
+            return;
+        }
+
+        // 悬停对比值（改后）
+        Map<String, TcpAttachmentS2CPacket.StatEntry> hoverMap = null;
+        if (hoverId != null && !hoverId.isBlank()) {
+            List<GunStats.Stat> hov = hoverStats(gun);
+            if (!hov.isEmpty()) {
+                hoverMap = new LinkedHashMap<>();
+                for (GunStats.Stat s : hov) {
+                    hoverMap.put(s.key(), new TcpAttachmentS2CPacket.StatEntry(
+                            s.key(), s.label(), s.value(), s.raw(), s.percent()));
+                }
+            }
+        }
+
+        int rowY = y + 16;
+        for (TcpAttachmentS2CPacket.StatEntry s : stats) {
+            g.drawString(this.font, fit(s.label(), 56), x + 5, rowY, 0xFFBBD0E0, false);
+
+            String cur = s.value() == null ? "-" : s.value();
+            int col = 0xFFE8ECF4;
+            String extra = "";
+            if (hoverMap != null) {
+                TcpAttachmentS2CPacket.StatEntry h = hoverMap.get(s.key());
+                if (h != null && Math.abs(h.raw() - s.raw()) > 1.0E-4F) {
+                    double diff = h.raw() - s.raw();
+                    // 后坐/开镜/重量：越小越好 → 减小算提升
+                    boolean lowerBetter = "recoil".equals(s.key()) || "aim".equals(s.key())
+                            || "weight".equals(s.key());
+                    boolean better = lowerBetter ? diff < 0 : diff > 0;
+                    col = better ? 0xFF6BE08A : 0xFFFF7B7B;
+                    extra = (diff > 0 ? " ▲" : " ▼") + s.value();
+                    cur = h.value();
+                }
+            }
+
+            int valueX = x + 5 + Math.min(56, this.font.width(fit(s.label(), 56))) + 6;
+            g.drawString(this.font, cur, valueX, rowY, col, false);
+            if (!extra.isEmpty()) {
+                g.drawString(this.font, extra, valueX + this.font.width(cur) + 4, rowY, col, false);
+            }
+            rowY += 12;
+        }
+    }
+
+    /** 悬停某配件时的「改后数值」——客户端自己算，同一套 GunStats */
+    private List<GunStats.Stat> hoverStats(TcpAttachmentS2CPacket.GunEntry gun) {
+        String key = gun.gunId() + "#" + hoverType + "=" + hoverId;
+        if (key.equals(statCacheKey)) return statHover;
+
+        List<GunStats.Stat> out = List.of();
+        try {
+            Map<String, String> atts = new LinkedHashMap<>();
+            for (TcpAttachmentS2CPacket.TypeEntry t : gun.types()) {
+                if (t.current() != null && !t.current().isBlank()) atts.put(t.type(), t.current());
+            }
+            if (hoverType != null && hoverId != null && !hoverId.isBlank()) {
+                atts.put(hoverType, hoverId);
+            }
+            out = GunStats.read(gun.gunId(), atts);
+        } catch (Throwable ignored) {
+        }
+        statCacheKey = key;
+        statHover = out;
+        return out;
     }
 
     private static void markTaczGuiRender() {

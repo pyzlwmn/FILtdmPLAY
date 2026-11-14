@@ -21,6 +21,18 @@ public final class TcpClientSetup {
             FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE, new TcpHud());
             FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_PAIR, new TcpHud());
             FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_SOLO, new TcpHud());
+            // ★ v80：战术地图雷达（三种玩法都挂）
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE, new TcpTacticalMapHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_PAIR, new TcpTacticalMapHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_SOLO, new TcpTacticalMapHud());
+            // ★ v80：自定义物品栏（枪械 + 弹药，替换原版快捷栏）
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE, new TcpHotbarHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_PAIR, new TcpHotbarHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_SOLO, new TcpHotbarHud());
+            // ★ v82：自定义血条（饥饿值不要）
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE, new TcpStatusHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_PAIR, new TcpStatusHud());
+            FPSMGameHudManager.INSTANCE.registerHud(TeamCompetitionMap.TYPE_SOLO, new TcpStatusHud());
             // ★ v68：TabManager 按地图的 gameType 精确查表 → pair / solo 各注册一份，否则按 Tab 出不来榜单
             // ★ v69：pair / solo 用独立的对战卡面板，不复用 tdm 表格版
             TabManager.getInstance().registerRenderer(new TcpTabRenderer(TeamCompetitionMap.TYPE));

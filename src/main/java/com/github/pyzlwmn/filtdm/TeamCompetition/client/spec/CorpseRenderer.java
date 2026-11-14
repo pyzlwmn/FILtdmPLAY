@@ -43,6 +43,8 @@ public final class CorpseRenderer {
     /** 尸体贴地偏移（让模型躺在地上而不是陷进方块） */
     private static final double LIE_Y = 0.06D;
 
+    private static boolean warnedRender = false;
+
     private CorpseRenderer() {
     }
 
@@ -149,10 +151,13 @@ public final class CorpseRenderer {
             TcpCorpseClient.Corpse info = TcpCorpseClient.get(entry.getKey());
 
             poseStack.pushPose();
-            // 相对相机的位置（dispatcher.render 内部还会再 translate 一次 x/y/z，故这里传相对量）
+            // ★ v83 修「尸体飘在空中」：必须【先位移再旋转】。
+            // 之前先 mulPose 再让 dispatcher 自己 translate，位移被旋转矩阵带着转，
+            // 模型就跑到半空 / 偏到别处了。
             double rx = d.getX() - cam.x;
             double ry = d.getY() - cam.y + LIE_Y;
             double rz = d.getZ() - cam.z;
+            poseStack.translate(rx, ry, rz);
 
             // 躺倒旋转：先绕 Y 按死亡朝向，再绕 Z 90° 让身体平躺，最后轻微歪斜
             poseStack.mulPose(new Quaternionf().rotateY(
@@ -161,10 +166,15 @@ public final class CorpseRenderer {
             poseStack.mulPose(new Quaternionf().rotateY((float) Math.toRadians(5.0F)));
 
             try {
-                dispatcher.render(d, rx, ry, rz, d.getYRot(), partialTick,
+                // 位置已经在 pose 里了 → 这里传 0,0,0
+                dispatcher.render(d, 0.0D, 0.0D, 0.0D, d.getYRot(), partialTick,
                         poseStack, buffers, 0xF000F0);
-            } catch (RuntimeException ignored) {
-                // 渲染失败不刷屏
+            } catch (RuntimeException e) {
+                if (!warnedRender) {
+                    warnedRender = true;
+                    org.slf4j.LoggerFactory.getLogger("FIL-TDM-Corpse")
+                            .warn("[TDM·尸体] 模型渲染失败（后续静默）：{}", e.toString());
+                }
             }
 
             poseStack.popPose();
@@ -194,6 +204,7 @@ public final class CorpseRenderer {
                 0xF000F0,
                 net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY,
                 poseStack, buffers,
+                Minecraft.getInstance().level,
                 info.owner().hashCode() & 0xFFFF);
 
         poseStack.popPose();

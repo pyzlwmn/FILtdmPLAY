@@ -12,10 +12,15 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Optional;
 
 @Mod.EventBusSubscriber(modid = "filtdm", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class TeamCompetitionCombatListener {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("FIL-TDM-Combat");
 
     private TeamCompetitionCombatListener() {
     }
@@ -53,6 +58,13 @@ public final class TeamCompetitionCombatListener {
 
         // v73：把「谁杀的 / 什么队 / 是否爆头」记到死者身上，供死亡 UI 击杀横幅使用
         map.rememberKiller(dead, killer, event.isHeadshot());
+
+        // ★ v74：击杀事件是唯一可靠的「死亡信号」（上游把 LivingDeathEvent 取消了 + 回满血），
+        //   这里直接驱动死亡冻结：固定视角 + 延迟复活 + 死亡 UI + 尸体
+        if (map.startDeathFreeze(dead)) {
+            LOGGER.info("[TDM·死亡] 击杀事件 → 进入死亡冻结（延迟 {} 秒）",
+                    map.respawnDelaySeconds());
+        }
 
         map.sendKillFeed(killer, dead,
                 "§c☠ " + killer.getName().getString()

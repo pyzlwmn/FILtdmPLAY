@@ -479,7 +479,17 @@ public final class LoadoutManager {
                 }
             }
             if (types.isEmpty()) continue;
-            guns.add(new TcpAttachmentS2CPacket.GunEntry(slotName, label, gunId, types));
+            // ★ v74：读当前生效配件的数值面板，随包发到客户端
+            List<TcpAttachmentS2CPacket.StatEntry> stats = new ArrayList<>();
+            try {
+                for (GunStats.Stat s : GunStats.read(gunId, effectiveAttachments(player, slotName))) {
+                    stats.add(new TcpAttachmentS2CPacket.StatEntry(
+                            s.key(), s.label(), s.value(), s.raw(), s.percent()));
+                }
+            } catch (RuntimeException ex) {
+                LOG.warn("[TDM·数值] {} 数值读取失败：{}", gunId, ex.toString());
+            }
+            guns.add(new TcpAttachmentS2CPacket.GunEntry(slotName, label, gunId, types, stats));
         }
         int flags = 0;
         if (canEdit) flags |= TcpAttachmentS2CPacket.FLAG_CAN_EDIT;

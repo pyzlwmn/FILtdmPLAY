@@ -198,10 +198,10 @@ public class TcpVersusTabRenderer implements TabRenderer {
         int barW = 110;
         int barX = x + panelW - PAD - barW;
         int barY = hY + 15;
-        g.fill(barX, barY, barX + barW, barY + BAR_H, C_TRACK);
+        UiDraw.fillRounded(g, barX, barY, barW, BAR_H, 2, C_TRACK);
         int limit = TcpHudData.timeLimit() > 0 ? TcpHudData.timeLimit() : Math.max(1, TcpHudData.displaySeconds());
         float pct = Math.max(0f, Math.min(1f, (float) TcpHudData.displaySeconds() / limit));
-        g.fill(barX, barY, barX + Math.round(barW * pct), barY + BAR_H, C_GOLD);
+        UiDraw.fillRounded(g, barX, barY, Math.max(1, Math.round(barW * pct)), BAR_H, 2, C_GOLD);
         UiDraw.iconClock(g, barX - 8, barY + 2, 5, 0xCCFFC93C);
 
         // ── 两张卡 ───────────────────────────────────────────────────
@@ -316,7 +316,7 @@ public class TcpVersusTabRenderer implements TabRenderer {
         int barX = cx + PAD;
         int barW = cw - PAD * 2;
         int barY = cy + ch - 16;
-        g.fill(barX, barY, barX + barW, barY + BAR_H, C_TRACK);
+        UiDraw.fillRounded(g, barX, barY, barW, BAR_H, 2, C_TRACK);
         float p = Math.max(0f, Math.min(1f, score / (float) Math.max(1, TcpHudData.target())));
         g.fill(barX, barY, barX + Math.round(barW * p), barY + BAR_H, color);
 

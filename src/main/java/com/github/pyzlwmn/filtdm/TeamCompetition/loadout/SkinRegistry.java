@@ -99,6 +99,28 @@ public final class SkinRegistry {
         return match(gunId, ownedIds(player, slot));
     }
 
+    /**
+     * v80：战术地图用 —— 取该玩家「当前主武器皮肤」的代表 id。
+     * 优先步枪槽（槽位 1），其次手枪/刀，最后扁平拥有的第一个。
+     * 没有任何皮肤时返回空串（客户端会用队伍色）。
+     */
+    public static String representativeSkin(ServerPlayer player) {
+        if (player == null) return "";
+        reloadIfChanged();
+        for (String key : keysOf(player)) {
+            Map<Integer, Set<String>> slots = SLOT_OWNED.get(key);
+            if (slots != null) {
+                for (int slot : new int[]{1, 2, 5}) {
+                    Set<String> ids = slots.get(slot);
+                    if (ids != null && !ids.isEmpty()) return ids.iterator().next();
+                }
+            }
+            Set<String> flat = OWNED.get(key);
+            if (flat != null && !flat.isEmpty()) return flat.iterator().next();
+        }
+        return "";
+    }
+
     private static String match(String gunId, Set<String> owned) {
         if (gunId == null || gunId.isBlank() || owned.isEmpty()) return null;
         String want = normalize(gunId);
