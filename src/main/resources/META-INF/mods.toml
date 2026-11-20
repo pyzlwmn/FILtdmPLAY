@@ -9,7 +9,7 @@ displayName = "${mod_name}"
 authors = "${mod_authors}"
 displayTest = "MATCH_VERSION"
 logoFile = "icon.png"
-description = '''${mod_description}'''
+description = '''FIL（破晓 FIL）团队死斗玩法 mod · Team Deathmatch / CSDM · MC 1.20.1 Forge'''
 
 # 表名统一用 "${mod_id}"（带引号！），会自动展开成 gradle.properties 里的 mod_id，
 # 永远跟自己 [[mods]] 段的 modId 一致 → IDEA 不报红线
