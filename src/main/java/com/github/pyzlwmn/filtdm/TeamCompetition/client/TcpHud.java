@@ -1,5 +1,6 @@
 package com.github.pyzlwmn.filtdm.TeamCompetition.client;
 
+import com.github.pyzlwmn.filtdm.ClientConfig;
 import net.ptcrys.fpsmatch.common.client.screen.hud.IHudRenderer;
 import com.github.pyzlwmn.filtdm.TeamCompetition.net.TcpMatchEndS2CPacket;
 import net.minecraft.client.Minecraft;
@@ -68,6 +69,8 @@ public class TcpHud implements IHudRenderer {
     @Override
     public void onPlayerRender(ForgeGui gui, GuiGraphics g, float partialTick, int screenWidth, int screenHeight) {
         LAST_PARTIAL_TICK = partialTick;
+        // ★ v1.1.5：死亡界面显示时让位，避免和死亡信息重叠
+        if (com.github.pyzlwmn.filtdm.TeamCompetition.client.spec.DeathUiRenderer.isActive()) return;
         renderAll(g, screenWidth, screenHeight);
     }
 
@@ -76,6 +79,7 @@ public class TcpHud implements IHudRenderer {
         boolean deathActive = com.github.pyzlwmn.filtdm.TeamCompetition.client.spec.TcpDeathCameraClient.active();
 
         if (!deathActive) {
+            if (!ClientConfig.scoreEnabled) return;
             if (!TcpHudData.active()) return;
             Font font = Minecraft.getInstance().font;
 
@@ -97,6 +101,48 @@ public class TcpHud implements IHudRenderer {
     /** 取当前帧插值（Forge GUI 渲染阶段能拿到 partialTick，用静态槽兜住） */
     private static float LAST_PARTIAL_TICK = 0.0F;
 
+    /**
+     * 顶部比分条外框 {x, y, w, h}（布局编辑器 / 预览共用）。
+     * 数据没来时按「12 : 9 / 目标 30」的占位尺寸算。
+     */
+    public static int[] scoreBounds(int screenWidth, int screenHeight) {
+        Font font = Minecraft.getInstance().font;
+        boolean active = TcpHudData.active();
+        String blue = active ? String.valueOf(TcpHudData.blue()) : "12";
+        String red = active ? String.valueOf(TcpHudData.red()) : "9";
+        boolean avatars = active && TcpHudData.showAvatars();
+        int blueGroupW = avatars ? groupWidth(TcpHudData.blueRoster().size()) : 0;
+        int redGroupW = avatars ? groupWidth(TcpHudData.redRoster().size()) : 0;
+        int total = Math.max(180, EDGE_BAR_W + PAD + blueGroupW + PAD
+                + (font.width(blue) + font.width(" : ") + font.width(red)) + PAD
+                + redGroupW + PAD + EDGE_BAR_W);
+        int contentH = ROW1_H + ROW_TARGET_H + ROW_TIME_H + 2;
+
+        float s = HUD_SCALE * (float) ClientConfig.scoreScale;
+        int w = Math.round(total * s);
+        int h = Math.round(contentH * s);
+        int centerX = screenWidth / 2 + ClientConfig.scoreOffsetX;
+        int top = BAR_TOP + ClientConfig.scoreOffsetY;      // 面板顶边（绘制时 y = -2 相对原点）
+        int x = Math.round(centerX - (total / 2f) * s);
+        int y = Math.round(top - 2f * s);
+        return new int[]{x, y, w, h};
+    }
+
+    /** 顶部比分条当前内容尺寸（未缩放），供布局编辑器画预览用。 */
+    public static int[] scoreContentSize() {
+        Font font = Minecraft.getInstance().font;
+        boolean active = TcpHudData.active();
+        String blue = active ? String.valueOf(TcpHudData.blue()) : "12";
+        String red = active ? String.valueOf(TcpHudData.red()) : "9";
+        boolean avatars = active && TcpHudData.showAvatars();
+        int blueGroupW = avatars ? groupWidth(TcpHudData.blueRoster().size()) : 0;
+        int redGroupW = avatars ? groupWidth(TcpHudData.redRoster().size()) : 0;
+        int total = Math.max(180, EDGE_BAR_W + PAD + blueGroupW + PAD
+                + (font.width(blue) + font.width(" : ") + font.width(red)) + PAD
+                + redGroupW + PAD + EDGE_BAR_W);
+        return new int[]{total, ROW1_H + ROW_TARGET_H + ROW_TIME_H + 2, blueGroupW, redGroupW};
+    }
+
 
     private void drawScoreBar(GuiGraphics g, Font font, int screenWidth) {
         List<TcpHudData.RosterEntry> blues = TcpHudData.blueRoster();
@@ -115,49 +161,60 @@ public class TcpHud implements IHudRenderer {
         int half = total / 2;
         int contentH = ROW1_H + ROW_TARGET_H + ROW_TIME_H;
 
-        g.pose().pushPose();
-        g.pose().translate((float) screenWidth / 2f, (float) BAR_TOP, 0f);
-        g.pose().scale(HUD_SCALE, HUD_SCALE, 1f);
+        float a = (float) ClientConfig.scoreAlpha;
+        int cBg = UiDraw.mulAlpha(C_BG, a);
+        int cBorder = UiDraw.mulAlpha(C_BORDER, a);
+        int cBlue = UiDraw.mulAlpha(C_BLUE, a);
+        int cRed = UiDraw.mulAlpha(C_RED, a);
+        int cDim = UiDraw.mulAlpha(C_DIM, a);
+        int cGold = UiDraw.mulAlpha(C_GOLD, a);
+        int cText = UiDraw.mulAlpha(C_TEXT, a);
 
-        UiDraw.panel(g, -half, -2, total, contentH + 2, UiDraw.RADIUS_MEDIUM, C_BORDER, C_BG);
+        float s = HUD_SCALE * (float) Math.max(0.5, ClientConfig.scoreScale);
+        g.pose().pushPose();
+        g.pose().translate(screenWidth / 2f + ClientConfig.scoreOffsetX, BAR_TOP + ClientConfig.scoreOffsetY, 0f);
+        g.pose().scale(s, s, 1f);
+
+        UiDraw.panel(g, -half, -2, total, contentH + 2, UiDraw.RADIUS_MEDIUM, cBorder, cBg);
 
         int row1Cy = ROW1_H / 2;
         int cur = -half;
 
-        UiDraw.fillRounded(g, cur, -1, EDGE_BAR_W, contentH, 2, C_BLUE);
+        UiDraw.fillRounded(g, cur, -1, EDGE_BAR_W, contentH, 2, cBlue);
         cur += EDGE_BAR_W + PAD;
         if (avatars) {
-            drawAvatarGroup(g, blues, cur, row1Cy, C_BLUE);
+            drawAvatarGroup(g, blues, cur, row1Cy, cBlue);
             cur += blueGroupW + PAD;
         }
 
         int textY = row1Cy - 4;
-        g.drawString(font, blueScore, cur, textY, C_BLUE, true);
+        g.drawString(font, blueScore, cur, textY, cBlue, true);
         cur += font.width(blueScore);
-        g.drawString(font, sep, cur, textY, C_DIM, true);
+        g.drawString(font, sep, cur, textY, cDim, true);
         cur += font.width(sep);
-        g.drawString(font, redScore, cur, textY, C_RED, true);
+        g.drawString(font, redScore, cur, textY, cRed, true);
         cur += font.width(redScore) + PAD;
 
         if (avatars) {
-            drawAvatarGroup(g, reds, cur, row1Cy, C_RED);
+            drawAvatarGroup(g, reds, cur, row1Cy, cRed);
             cur += redGroupW + PAD;
         }
-        UiDraw.fillRounded(g, cur, -1, EDGE_BAR_W, contentH, 2, C_RED);
+        UiDraw.fillRounded(g, cur, -1, EDGE_BAR_W, contentH, 2, cRed);
 
         String targetText = "目标：" + TcpHudData.target();
         g.pose().pushPose();
         g.pose().translate(0f, (float) ROW1_H + 1f, 0f);
         g.pose().scale(TARGET_FONT_SCALE, TARGET_FONT_SCALE, 1f);
-        g.drawString(font, targetText, -font.width(targetText) / 2, 0, C_GOLD, true);
+        g.drawString(font, targetText, -font.width(targetText) / 2, 0, cGold, true);
         g.pose().popPose();
 
-        drawCenteredColonTime(g, font, 0, ROW1_H + ROW_TARGET_H + 2);
+        drawCenteredColonTime(g, font, 0, ROW1_H + ROW_TARGET_H + 2, cText, cDim);
 
         g.pose().popPose();
     }
 
-    private void drawCenteredColonTime(GuiGraphics g, Font font, int centerX, int y) {
+    private void drawCenteredColonTime(GuiGraphics g, Font font, int centerX, int y,
+                                       int textColor, int dimColor) {
         String[] parts = TcpHudData.timeParts(TcpHudData.displaySeconds());
         String mm = parts[0];
         String ss = parts[1];
@@ -165,12 +222,12 @@ public class TcpHud implements IHudRenderer {
         int colonW = font.width(colon);
 
         int colonX = centerX - colonW / 2;
-        g.drawString(font, mm, colonX - font.width(mm), y, C_TEXT, true);
-        g.drawString(font, colon, colonX, y, C_DIM, true);
-        g.drawString(font, ss, colonX + colonW, y, C_TEXT, true);
+        g.drawString(font, mm, colonX - font.width(mm), y, textColor, true);
+        g.drawString(font, colon, colonX, y, dimColor, true);
+        g.drawString(font, ss, colonX + colonW, y, textColor, true);
     }
 
-    private int groupWidth(int count) {
+    private static int groupWidth(int count) {
         int n = Math.min(count, MAX_AVATARS);
         if (n <= 0) return 0;
         return n * AVATAR + (n - 1) * AVATAR_GAP;

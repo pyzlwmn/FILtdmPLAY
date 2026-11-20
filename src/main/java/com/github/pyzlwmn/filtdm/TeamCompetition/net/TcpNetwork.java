@@ -161,6 +161,16 @@ public final class TcpNetwork {
                     ctx.get().setPacketHandled(true);
                 },
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        // ★ v1.1.0：受击方向（服务端在命中那一刻算一次世界方位角）
+        CHANNEL.registerMessage(id++, TcpHitDirS2CPacket.class,
+                TcpHitDirS2CPacket::encode,
+                TcpHitDirS2CPacket::decode,
+                (msg, ctx) -> {
+                    ctx.get().enqueueWork(() -> msg.handle(ctx.get()));
+                    ctx.get().setPacketHandled(true);
+                },
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 
     public static void sendToPlayer(ServerPlayer player, Object msg) {

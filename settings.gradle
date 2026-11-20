@@ -17,7 +17,7 @@ rootProject.name = 'filtdm'
 // ★ FPSMatch 以源码形式编进项目（先做：git submodule add https://github.com/PhasetransCrystal/FPSMatch.git FPSMatch）
 includeBuild('FPSMatch') {
     dependencySubstitution {
-        substitute module('com.ptcrys:fpsmatch') using project(':')
+        substitute module('net.ptcrys:fpsmatch') using project(':')
     }
 }
 

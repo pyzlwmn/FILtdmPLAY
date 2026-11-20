@@ -8,6 +8,7 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.ptcrys.fpsmatch.common.client.FPSMClient;
 
 /**
  * v80：把快捷栏选择锁死在 1~5。
@@ -34,11 +35,20 @@ public final class TcpHotbarLimiter {
         if (!ClientConfig.hotbarEnabled) return;
 
         Minecraft mc = Minecraft.getInstance();
-        // ★ v88：小地图地形刷新（自带 8 tick 节流）
-        RadarTerrain.tick(mc.level);
-
         Player player = mc.player;
         if (player == null || mc.screen != null) return;
+
+        // ★ v1.0.6：只有「在 FIL 对局里」才锁 1~5；
+        // 退出对局 / 对局结束后必须恢复正常切换，否则主世界也用不了 6~9 格
+        String gameType = null;
+        try {
+            var data = FPSMClient.getGlobalData();
+            if (data == null || !data.isInGame()) return;
+            gameType = data.getCurrentGameType();
+        } catch (Throwable ignored) {
+            return;
+        }
+        if (!"tdm".equals(gameType) && !"pair".equals(gameType) && !"solo".equals(gameType)) return;
 
         int sel = player.getInventory().selected;
         if (sel > MAX_SLOT) {

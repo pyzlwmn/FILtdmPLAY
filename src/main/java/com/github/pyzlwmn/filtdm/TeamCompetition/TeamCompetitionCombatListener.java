@@ -12,6 +12,7 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,7 @@ public final class TeamCompetitionCombatListener {
     private TeamCompetitionCombatListener() {
     }
 
-    private static TeamCompetitionMap mapOf(ServerPlayer player) {
+    static TeamCompetitionMap mapOf(ServerPlayer player) {
         Optional<BaseMap> cached = FPSMCore.getInstance().getMapByPlayer(player);
         if (cached.isPresent() && cached.get() instanceof TeamCompetitionMap tcp) {
             return tcp;
@@ -126,5 +127,7 @@ public final class TeamCompetitionCombatListener {
         if (tcp != null && (!tcp.isStart() || tcp.isProtected(player.getUUID()))) {
             event.setCanceled(true);
         }
+        // 受击方向的发包已经全部交给 TcpHitDirServer（枪械主通道 + LivingHurt 兜底）
     }
+
 }

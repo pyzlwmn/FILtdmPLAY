@@ -41,6 +41,14 @@ public final class DeathUiRenderer {
     }
 
     /**
+     * ★ v1.1.5：死亡界面是否正在显示。
+     * 其它 HUD（血条/物品栏/雷达/顶部比分）用它让位，避免和死亡信息重叠。
+     */
+    public static boolean isActive() {
+        return TcpDeathCameraClient.active();
+    }
+
+    /**
      * 绘制整块死亡 UI。
      *
      * @param g            GuiGraphics
@@ -130,7 +138,7 @@ public final class DeathUiRenderer {
             alpha = 1.0F - 0.45F * clamp01((elapsed - 1.5F) / 0.5F);
         }
 
-        int bannerTop = (int) (h * 0.13F);
+        int bannerTop = (int) (h * 0.09F);   // ★ v1.1.5：从 13% 上移到 9%，和顶边留呼吸位
         int offsetY = (int) ((1.0F - slide) * -16.0F);
 
         int centerX = w / 2;
@@ -224,7 +232,7 @@ public final class DeathUiRenderer {
         float progress = TcpDeathCameraClient.progress(partialTick);
 
         int marginX = (int) Math.max(18, w * 0.03F);
-        int bottomY = (int) (h - Math.max(14, h * 0.024F));
+        int bottomY = (int) (h - Math.max(20, h * 0.034F));   // ★ v1.1.5：底边抬高，不再和血条抢位置
 
         // 从底往上排：提示 → 进度条 → 大字 → 标签
         int hintY = bottomY - font.lineHeight;
@@ -270,7 +278,7 @@ public final class DeathUiRenderer {
         int target = TcpDeathCameraClient.scoreTarget();
 
         int marginX = (int) Math.max(18, w * 0.03F);
-        int bottomY = (int) (h - Math.max(14, h * 0.024F));
+        int bottomY = (int) (h - Math.max(20, h * 0.034F));   // ★ v1.1.5：与复活块同底边
 
         int boxW = 62;
         int boxH = 44;
@@ -279,7 +287,7 @@ public final class DeathUiRenderer {
 
         int redX = rightX - boxW;
         int blueX = redX - gap - boxW;
-        int boxY = bottomY - boxH - 16;
+        int boxY = bottomY - boxH - 22;   // ★ v1.1.5：与「目标 X」拉开 10px
 
         drawTeamBox(g, font, blueX, boxY, boxW, boxH, "蓝队", blue, C_ALLY);
         drawTeamBox(g, font, redX, boxY, boxW, boxH, "红队", red, C_ENEMY);

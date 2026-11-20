@@ -14,6 +14,19 @@ public final class UiDraw {
     private UiDraw() {
     }
 
+    /**
+     * 不透明度乘算：保留原色 RGB，只按倍率压 alpha。
+     * 布局编辑器里的「透明度」就靠这个统一走一遍各组件的颜色。
+     */
+    public static int mulAlpha(int color, float mul) {
+        float a = mul;
+        if (a < 0f) a = 0f;
+        if (a > 1f) a = 1f;
+        int base = (color >>> 24) & 0xFF;
+        int na = Math.round(base * a);
+        return (na << 24) | (color & 0x00FFFFFF);
+    }
+
     public static void fillRounded(GuiGraphics g, int x, int y, int w, int h, int radius, int color) {
         if (w <= 0 || h <= 0) return;
         int r = Math.min(radius, Math.min(w, h) / 2);

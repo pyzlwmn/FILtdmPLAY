@@ -36,6 +36,41 @@ public class TcpTacticalMapHud implements IHudRenderer {
     private static final int C_DEAD = 0x99FF6B6B;
     private static final int C_TICK = 0x55202836;
 
+    /** 当前帧的不透明倍率（布局编辑器调 alpha 用） */
+    private static float ALPHA = 1.0f;
+
+    private static int ca(int color) {
+        return UiDraw.mulAlpha(color, ALPHA);
+    }
+
+    /** 雷达在屏幕上的正方形外框 {x, y, w, h}（布局编辑器 / 预览共用同一套算法）。 */
+    public static int[] bounds(int screenWidth, int screenHeight) {
+        float rs = (float) Math.max(0.5, ClientConfig.radarScale);
+        int radius = Math.max(24, Math.round(RADIUS * rs));
+        int diameter = radius * 2;
+        String anchor = ClientConfig.radarAnchor == null
+                ? "BOTTOM_RIGHT" : ClientConfig.radarAnchor.trim().toUpperCase();
+        int[] pos;
+        if (ClientConfig.radarSnapAboveHotbar && anchor.startsWith("BOTTOM")) {
+            int[] hb = TcpHotbarHud.hotbarRect(screenWidth, screenHeight, TcpHotbarHud.hotbarScale());
+            int x = anchor.contains("LEFT") ? hb[0] : hb[0] + hb[2] - diameter;
+            int y = hb[1] - diameter - 8;
+            pos = new int[]{x + ClientConfig.radarOffsetX, y + ClientConfig.radarOffsetY};
+        } else {
+            pos = HudPos.place(anchor, diameter, diameter, screenWidth, screenHeight,
+                    ClientConfig.radarOffsetX, ClientConfig.radarOffsetY);
+        }
+        pos[0] = Math.max(4, Math.min(pos[0], screenWidth - diameter - 4));
+        pos[1] = Math.max(4, Math.min(pos[1], screenHeight - diameter - 4));
+        return new int[]{pos[0], pos[1], diameter, diameter};
+    }
+
+    /** 雷达大小（直径，像素）。 */
+    public static int diameter() {
+        float rs = (float) Math.max(0.5, ClientConfig.radarScale);
+        return Math.max(24, Math.round(RADIUS * rs)) * 2;
+    }
+
     @Override
     public void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
     }
@@ -47,6 +82,8 @@ public class TcpTacticalMapHud implements IHudRenderer {
 
     @Override
     public void onPlayerRender(ForgeGui gui, GuiGraphics g, float partialTick, int screenWidth, int screenHeight) {
+        // ★ v1.1.5：死亡界面显示时让位，避免和死亡信息重叠
+        if (com.github.pyzlwmn.filtdm.TeamCompetition.client.spec.DeathUiRenderer.isActive()) return;
         render(g, screenWidth, screenHeight);
     }
 
@@ -62,51 +99,24 @@ public class TcpTacticalMapHud implements IHudRenderer {
         List<TcpTacticalMapS2CPacket.Blip> blips = TcpTacticalMapData.blips();
         float range = Math.max(8.0f, TcpTacticalMapData.range());
 
-        // ★ v80：大小 / 位置全部走客户端配置
-        float rs = (float) Math.max(0.5, ClientConfig.radarScale);
-        int radius = Math.max(24, Math.round(RADIUS * rs));
-        int diameter = radius * 2;
-        String anchor = ClientConfig.radarAnchor == null
-                ? "BOTTOM_RIGHT" : ClientConfig.radarAnchor.trim().toUpperCase();
-        int[] pos;
-        if (ClientConfig.radarSnapAboveHotbar && anchor.startsWith("BOTTOM")) {
-            // ★ v81：直接吸附在物品栏正上方，右/左边缘对齐，永不错位
-            int[] hb = TcpHotbarHud.hotbarRect(width, height, TcpHotbarHud.hotbarScale());
-            int x = anchor.contains("LEFT") ? hb[0] : hb[0] + hb[2] - diameter;
-            int y = hb[1] - diameter - 8;
-            pos = new int[]{x + ClientConfig.radarOffsetX, y + ClientConfig.radarOffsetY};
-        } else {
-            pos = HudPos.place(anchor, diameter, diameter, width, height,
-                    ClientConfig.radarOffsetX, ClientConfig.radarOffsetY);
-        }
-        // 兜底：别画出屏幕
-        pos[0] = Math.max(4, Math.min(pos[0], width - diameter - 4));
-        pos[1] = Math.max(4, Math.min(pos[1], height - diameter - 4));
+        // ★ v80：大小 / 位置全部走客户端配置（v1.2.0 起 bounds() 与布局编辑器共用）
+        ALPHA = (float) ClientConfig.radarAlpha;
+        int[] pos = bounds(width, height);
+        int diameter = pos[2];
+        int radius = diameter / 2;
         int cx = pos[0] + radius;
         int cy = pos[1] + radius;
 
         // 底盘
-        disc(g, cx, cy, radius, C_BG);
+        disc(g, cx, cy, radius, ca(C_BG));
 
-        // ★ v88：地形层（纹理里已烘好圆形遮罩，旋转后仍是正圆）
-        if (ClientConfig.radarTerrain && RadarTerrain.ready()) {
-            var tp = g.pose();
-            tp.pushPose();
-            tp.translate(cx, cy, 0);
-            tp.mulPose(new org.joml.Quaternionf().rotateZ(
-                    (float) Math.toRadians(-self.getYRot())));
-            tp.translate(-radius, -radius, 0);
-            g.blit(RadarTerrain.textureId(), 0, 0, 0.0f, 0.0f,
-                    diameter, diameter, RadarTerrain.GRID, RadarTerrain.GRID);
-            tp.popPose();
-        }
-        ring(g, cx, cy, radius, C_RING);
+        ring(g, cx, cy, radius, ca(C_RING));
         // 十字刻度
-        g.fill(cx - radius + 4, cy, cx + radius - 4, cy + 1, C_TICK);
-        g.fill(cx, cy - radius + 4, cx + 1, cy + radius - 4, C_TICK);
+        g.fill(cx - radius + 4, cy, cx + radius - 4, cy + 1, ca(C_TICK));
+        g.fill(cx, cy - radius + 4, cx + 1, cy + radius - 4, ca(C_TICK));
 
         // 自己（始终在中心，箭头朝上）
-        triangle(g, cx, cy, 4, C_SELF, 0f);
+        triangle(g, cx, cy, 4, ca(C_SELF), 0f);
 
         double px = self.getX();
         double pz = self.getZ();
@@ -135,10 +145,10 @@ public class TcpTacticalMapHud implements IHudRenderer {
             int sx = cx + (int) Math.round(rgt * scale);
             int sy = cy - (int) Math.round(fwd * scale);
 
-            int color = mate ? skinColor(b.skin(), b.team()) : C_RED;
+            int color = ca(mate ? skinColor(b.skin(), b.team()) : C_RED);
 
             if (mate && !b.alive()) {
-                cross(g, sx, sy, 3, C_DEAD);
+                cross(g, sx, sy, 3, ca(C_DEAD));
                 continue;
             }
 

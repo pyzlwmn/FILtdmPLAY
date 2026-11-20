@@ -43,6 +43,23 @@ public class TcpStatusHud implements IHudRenderer {
     private static final int C_TEXT = 0xFFFFFFFF;
     private static final int C_DIM = 0xFF9AA4B2;
 
+    /** 当前帧不透明倍率（布局编辑器调 alpha 用）。 */
+    private static float ALPHA = 1.0f;
+
+    private static int ca(int color) {
+        return UiDraw.mulAlpha(color, ALPHA);
+    }
+
+    /** 状态条外框 {x, y, w, h}（布局编辑器 / 预览共用）。 */
+    public static int[] bounds(int screenWidth, int screenHeight) {
+        float s = (float) Math.max(0.5, ClientConfig.statusScale);
+        int pw = Math.round(PANEL_W * s);
+        int ph = Math.round(PANEL_H * s);
+        int px = MARGIN + ClientConfig.statusOffsetX;
+        int py = screenHeight - ph - MARGIN + ClientConfig.statusOffsetY;
+        return new int[]{px, py, pw, ph};
+    }
+
     @Override
     public void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
         if (!ClientConfig.statusEnabled) return;
@@ -63,6 +80,8 @@ public class TcpStatusHud implements IHudRenderer {
 
     @Override
     public void onPlayerRender(ForgeGui gui, GuiGraphics g, float partialTick, int screenWidth, int screenHeight) {
+        // ★ v1.1.5：死亡界面显示时让位，避免和死亡信息重叠
+        if (com.github.pyzlwmn.filtdm.TeamCompetition.client.spec.DeathUiRenderer.isActive()) return;
         if (!ClientConfig.statusEnabled) return;
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
@@ -71,14 +90,16 @@ public class TcpStatusHud implements IHudRenderer {
         if (mc.screen != null) return;
 
         float s = (float) Math.max(0.5, ClientConfig.statusScale);
+        ALPHA = (float) ClientConfig.statusAlpha;
 
-        int pw = Math.round(PANEL_W * s);
-        int ph = Math.round(PANEL_H * s);
-        int px = MARGIN + ClientConfig.statusOffsetX;
-        int py = screenHeight - ph - MARGIN + ClientConfig.statusOffsetY;
+        int[] rect = bounds(screenWidth, screenHeight);
+        int px = rect[0];
+        int py = rect[1];
+        int pw = rect[2];
+        int ph = rect[3];
 
         UiDraw.panelEx(g, px, py, pw, ph, 8,
-                C_BORDER, 0xE80F1620, 0xE8090E15, 0x5546C46A);
+                ca(C_BORDER), ca(0xE80F1620), ca(0xE8090E15), ca(0x5546C46A));
 
         var pose = g.pose();
         pose.pushPose();
@@ -93,16 +114,16 @@ public class TcpStatusHud implements IHudRenderer {
 
         // ❤ 数值
         String hpText = String.valueOf(Math.round(hp));
-        g.drawString(font, "❤", 8, 8, C_HP_LOW, false);
-        g.drawString(font, hpText, 20, 8, C_TEXT, false);
+        g.drawString(font, "❤", 8, 8, ca(C_HP_LOW), false);
+        g.drawString(font, hpText, 20, 8, ca(C_TEXT), false);
 
         // 血条
         int barX = 50;
         int barY = 8;
         int barW = BAR_W - 56;
-        UiDraw.fillRounded(g, barX, barY, barW, BAR_H, BAR_H / 2, C_TRACK);
+        UiDraw.fillRounded(g, barX, barY, barW, BAR_H, BAR_H / 2, ca(C_TRACK));
         int fill = Math.round(barW * ratio);
-        int hpColor = ratio > 0.3f ? C_HP : C_HP_LOW;
+        int hpColor = ca(ratio > 0.3f ? C_HP : C_HP_LOW);
         if (fill > 0) {
             UiDraw.fillRounded(g, barX, barY, Math.max(BAR_H, fill), BAR_H, BAR_H / 2, hpColor);
         }
@@ -110,10 +131,10 @@ public class TcpStatusHud implements IHudRenderer {
         // 护甲（有才显示）
         int armor = player.getArmorValue();
         if (armor > 0) {
-            g.drawString(font, "🛡", 8, 24, C_ARMOR, false);
-            g.drawString(font, String.valueOf(armor), 20, 24, C_DIM, false);
+            g.drawString(font, "🛡", 8, 24, ca(C_ARMOR), false);
+            g.drawString(font, String.valueOf(armor), 20, 24, ca(C_DIM), false);
         } else {
-            g.drawString(font, "无护甲", 8, 24, 0xFF5D6B7A, false);
+            g.drawString(font, "无护甲", 8, 24, ca(0xFF5D6B7A), false);
         }
 
         pose.popPose();

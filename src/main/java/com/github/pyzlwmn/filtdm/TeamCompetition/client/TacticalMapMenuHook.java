@@ -36,5 +36,13 @@ public final class TacticalMapMenuHook {
                 })
                 .bounds(x, y, w, 20)
                 .build());
+
+        // ★ v1.2.0：HUD 布局编辑器（拖动 / 大小 / 透明度 全部可视化调）
+        event.addListener(Button.builder(Component.literal("HUD 界面布局"), b -> {
+                    Minecraft mc = Minecraft.getInstance();
+                    mc.execute(() -> mc.setScreen(new HudLayoutScreen(pause)));
+                })
+                .bounds(x, y + 24, w, 20)
+                .build());
     }
 }

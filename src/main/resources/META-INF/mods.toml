@@ -40,3 +40,11 @@ mandatory = true
 versionRange = "[3.11.0,)"
 ordering = "NONE"
 side = "BOTH"
+
+# ★ v1.1.4：Simple Voice Chat 语音适配（可选依赖，没装也能正常启动）
+[[dependencies."${mod_id}"]]
+modId = "voicechat"
+mandatory = false
+versionRange = "[2.5.0,)"
+ordering = "AFTER"
+side = "BOTH"

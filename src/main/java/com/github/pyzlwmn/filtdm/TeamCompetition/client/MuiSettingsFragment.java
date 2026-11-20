@@ -71,6 +71,16 @@ public class MuiSettingsFragment extends Fragment {
     private int statusX;
     private int statusY;
 
+    // 受击方向（v1.1.0）
+    private boolean hitdirOn;
+    private double hitdirRadius;
+    private double hitdirScale;
+    private double hitdirDuration;
+    private double hitdirAlpha;
+    private String hitdirColor;
+    private int hitdirX;
+    private int hitdirY;
+
     private LinearLayout root;
 
     private TextView radarSwitchLabel;
@@ -88,6 +98,15 @@ public class MuiSettingsFragment extends Fragment {
     private TextView statusScaleLabel;
     private TextView statusXLabel;
     private TextView statusYLabel;
+
+    private TextView hitdirSwitchLabel;
+    private TextView hitdirRadiusLabel;
+    private TextView hitdirScaleLabel;
+    private TextView hitdirDurationLabel;
+    private TextView hitdirAlphaLabel;
+    private TextView hitdirColorLabel;
+    private TextView hitdirXLabel;
+    private TextView hitdirYLabel;
 
     private final TextView[] anchorViews = new TextView[9];
 
@@ -108,6 +127,15 @@ public class MuiSettingsFragment extends Fragment {
         statusScale = ClientConfig.statusScale;
         statusX = ClientConfig.statusOffsetX;
         statusY = ClientConfig.statusOffsetY;
+
+        hitdirOn = ClientConfig.hitDirEnabled;
+        hitdirRadius = ClientConfig.hitDirRadius;
+        hitdirScale = ClientConfig.hitDirScale;
+        hitdirDuration = ClientConfig.hitDirDuration;
+        hitdirAlpha = ClientConfig.hitDirAlpha;
+        hitdirColor = ClientConfig.hitDirColor;
+        hitdirX = ClientConfig.hitDirOffsetX;
+        hitdirY = ClientConfig.hitDirOffsetY;
     }
 
     @Override
@@ -142,16 +170,6 @@ public class MuiSettingsFragment extends Fragment {
             radarScaleLabel.setText(String.format("大小：%.2f×", radarScale));
             push();
         });
-
-        // ★ v88：地形开关
-        Button terrainBtn = MuiStyle.ghostButton(ctx,
-                "地形：" + (ClientConfig.radarTerrain ? "开" : "关"), null);
-        terrainBtn.setOnClickListener(v -> {
-            ClientConfig.radarTerrain = !ClientConfig.radarTerrain;
-            terrainBtn.setText("地形：" + (ClientConfig.radarTerrain ? "开" : "关"));
-            ClientConfig.save();
-        });
-        root.addView(terrainBtn);
 
         addText(ctx, "位置", 12, C_LABEL);
         LinearLayout grid = new LinearLayout(ctx);
@@ -263,6 +281,71 @@ public class MuiSettingsFragment extends Fragment {
             push();
         });
 
+        // ---------- 受击方向（v1.1.0） ----------
+        root.addView(MuiStyle.divider(ctx));
+        root.addView(MuiStyle.section(ctx, "受击方向"));
+        addText(ctx, "被打中时在屏幕中心的虚拟圆上显示三角（圆本身不画）", 12, C_HINT);
+
+        hitdirSwitchLabel = addRowLabel(ctx, "显示受击方向：" + (hitdirOn ? "开" : "关"));
+        addSwitch(ctx, hitdirOn, on -> {
+            hitdirOn = on;
+            hitdirSwitchLabel.setText("显示受击方向：" + (hitdirOn ? "开" : "关"));
+            push();
+        });
+
+        hitdirRadiusLabel = addRowLabel(ctx, "圆半径：" + Math.round(hitdirRadius) + " px");
+        addSeek(ctx, 60, 260, hitdirRadius, v -> {
+            hitdirRadius = Math.round(v);
+            hitdirRadiusLabel.setText("圆半径：" + Math.round(hitdirRadius) + " px");
+            push();
+        });
+
+        hitdirScaleLabel = addRowLabel(ctx, String.format("三角大小：%.2f×", hitdirScale));
+        addSeek(ctx, 40, 200, hitdirScale * 100.0, v -> {
+            hitdirScale = v / 100.0;
+            hitdirScaleLabel.setText(String.format("三角大小：%.2f×", hitdirScale));
+            push();
+        });
+
+        hitdirDurationLabel = addRowLabel(ctx, String.format("显示时长：%.1f s", hitdirDuration));
+        addSeek(ctx, 10, 80, hitdirDuration * 10.0, v -> {
+            hitdirDuration = v / 10.0;
+            hitdirDurationLabel.setText(String.format("显示时长：%.1f s", hitdirDuration));
+            push();
+        });
+
+        hitdirAlphaLabel = addRowLabel(ctx, String.format("不透明度：%.2f", hitdirAlpha));
+        addSeek(ctx, 30, 100, hitdirAlpha * 100.0, v -> {
+            hitdirAlpha = v / 100.0;
+            hitdirAlphaLabel.setText(String.format("不透明度：%.2f", hitdirAlpha));
+            push();
+        });
+
+        hitdirColorLabel = addRowLabel(ctx, "颜色：" + colorName(hitdirColor));
+        Button hitdirColorBtn = new Button(ctx);
+        hitdirColorBtn.setText("切换颜色");
+        hitdirColorBtn.setTextSize(13);
+        hitdirColorBtn.setOnClickListener(v -> {
+            hitdirColor = nextColor(hitdirColor);
+            hitdirColorLabel.setText("颜色：" + colorName(hitdirColor));
+            push();
+        });
+        root.addView(hitdirColorBtn);
+
+        hitdirXLabel = addRowLabel(ctx, "圆心水平偏移：" + hitdirX + " px");
+        addSeek(ctx, -300, 300, hitdirX, v -> {
+            hitdirX = (int) Math.round(v);
+            hitdirXLabel.setText("圆心水平偏移：" + hitdirX + " px");
+            push();
+        });
+
+        hitdirYLabel = addRowLabel(ctx, "圆心垂直偏移：" + hitdirY + " px");
+        addSeek(ctx, -300, 300, hitdirY, v -> {
+            hitdirY = (int) Math.round(v);
+            hitdirYLabel.setText("圆心垂直偏移：" + hitdirY + " px");
+            push();
+        });
+
         // ---------- 底部按钮 ----------
         LinearLayout bottom = new LinearLayout(ctx);
         bottom.setOrientation(HORIZONTAL);
@@ -310,6 +393,15 @@ public class MuiSettingsFragment extends Fragment {
         statusScale = ClientConfig.statusScale;
         statusX = ClientConfig.statusOffsetX;
         statusY = ClientConfig.statusOffsetY;
+
+        hitdirOn = ClientConfig.hitDirEnabled;
+        hitdirRadius = ClientConfig.hitDirRadius;
+        hitdirScale = ClientConfig.hitDirScale;
+        hitdirDuration = ClientConfig.hitDirDuration;
+        hitdirAlpha = ClientConfig.hitDirAlpha;
+        hitdirColor = ClientConfig.hitDirColor;
+        hitdirX = ClientConfig.hitDirOffsetX;
+        hitdirY = ClientConfig.hitDirOffsetY;
     }
 
     private void refreshAllLabels() {
@@ -329,6 +421,38 @@ public class MuiSettingsFragment extends Fragment {
         if (statusScaleLabel != null) statusScaleLabel.setText(String.format("大小：%.2f×", statusScale));
         if (statusXLabel != null) statusXLabel.setText("水平偏移：" + statusX + " px");
         if (statusYLabel != null) statusYLabel.setText("垂直偏移：" + statusY + " px");
+
+        if (hitdirSwitchLabel != null) hitdirSwitchLabel.setText("显示受击方向：" + (hitdirOn ? "开" : "关"));
+        if (hitdirRadiusLabel != null) hitdirRadiusLabel.setText("圆半径：" + Math.round(hitdirRadius) + " px");
+        if (hitdirScaleLabel != null) hitdirScaleLabel.setText(String.format("三角大小：%.2f×", hitdirScale));
+        if (hitdirDurationLabel != null) hitdirDurationLabel.setText(String.format("显示时长：%.1f s", hitdirDuration));
+        if (hitdirAlphaLabel != null) hitdirAlphaLabel.setText(String.format("不透明度：%.2f", hitdirAlpha));
+        if (hitdirColorLabel != null) hitdirColorLabel.setText("颜色：" + colorName(hitdirColor));
+        if (hitdirXLabel != null) hitdirXLabel.setText("圆心水平偏移：" + hitdirX + " px");
+        if (hitdirYLabel != null) hitdirYLabel.setText("圆心垂直偏移：" + hitdirY + " px");
+    }
+
+    private static final String[] COLORS = {"RED", "WHITE", "AMBER", "CYAN"};
+
+    private static String colorName(String key) {
+        if (key == null) return "伤害红";
+        return switch (key.toUpperCase(java.util.Locale.ROOT)) {
+            case "WHITE" -> "纯白";
+            case "AMBER" -> "琥珀黄";
+            case "CYAN" -> "冷青";
+            default -> "伤害红";
+        };
+    }
+
+    private static String nextColor(String key) {
+        int idx = 0;
+        for (int i = 0; i < COLORS.length; i++) {
+            if (COLORS[i].equalsIgnoreCase(key)) {
+                idx = i;
+                break;
+            }
+        }
+        return COLORS[(idx + 1) % COLORS.length];
     }
 
     private String anchorText(int i) {
@@ -345,6 +469,8 @@ public class MuiSettingsFragment extends Fragment {
         ClientConfig.apply(radarOn, radarScale, anchor, radarX, radarY);
         ClientConfig.applyHotbar(hotbarOn, hotbarScale, hotbarX, hotbarY, hotbarAmmo);
         ClientConfig.applyStatus(statusOn, statusScale, statusX, statusY);
+        ClientConfig.applyHitDir(hitdirOn, hitdirRadius, hitdirScale, hitdirDuration,
+                hitdirAlpha, hitdirColor, hitdirX, hitdirY);
     }
 
     @Override

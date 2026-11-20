@@ -53,6 +53,11 @@ public class TeamCompetitionMap extends BaseMap {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("FIL-TDM");
 
+    /** ★ v1.1.0：对局内最大生命值（原版 20 → 40），离场自动恢复。 */
+    private static final double MATCH_MAX_HEALTH = 40.0;
+    private static final UUID HEALTH_MODIFIER_ID = UUID.fromString("5a1f0c2e-7b3d-4e58-9a10-6f4c2b8d7e01");
+    private static final String HEALTH_MODIFIER_NAME = "filtdm_match_health";
+
     public static final String TYPE = "tdm";
 
     // ★ v68：新增第四个字段 gameType，用来区分三种玩法（tdm / pair / solo）。
@@ -510,6 +515,12 @@ public class TeamCompetitionMap extends BaseMap {
         } catch (RuntimeException ignored) {
         }
 
+        // ★ v1.1.4：SVC 队伍语音分组（没装 SVC 时内部直接返回，每秒一次）
+        try {
+            com.github.pyzlwmn.filtdm.TeamCompetition.voice.VoiceSupport.tick(this);
+        } catch (Throwable ignored) {
+        }
+
         if (isStart) {
             scanForDeaths();
             processDeathFreeze();
@@ -596,6 +607,12 @@ public class TeamCompetitionMap extends BaseMap {
 
         this.gameEnded = false;
         this.cleaningUp = false;
+        this.postMatch = false;
+        this.postMatchTicks = 0;
+        // ★ v1.0.6 修「重进对局倒计时结束直接判结束」：上一局的击杀数必须清零，
+        // 否则 victoryGoal() 一开局就成立
+        clearKills(redTeam);
+        clearKills(blueTeam);
         this.protectUntilTick.clear();
         this.loadoutGiven.clear();
         this.preStartRunning = true;
@@ -610,6 +627,7 @@ public class TeamCompetitionMap extends BaseMap {
 
                 resetPlayerInventory(player);   // ★ v67：每轮重置 = 清背包 + 冒险模式
 
+                applyMatchHealth(player);       // ★ v1.1.0：对局内 40 血 + 补满
                 healFull(player);
             }
         }
@@ -649,6 +667,7 @@ public class TeamCompetitionMap extends BaseMap {
         for (ServerTeam team : getMapTeams().getNormalTeams()) {
             for (ServerPlayer player : new ArrayList<>(team.getOnline())) {
                 sendToTeamSpawn(player, false);
+                applyMatchHealth(player);       // ★ v1.1.0
                 healFull(player);
                 applyLoadoutTo(player);
                 sendLoadoutPacket(player);
@@ -741,9 +760,13 @@ public class TeamCompetitionMap extends BaseMap {
                 p.teleportTo(lobby, lx + 0.5, ly, lz + 0.5, yaw, 0f);
                 p.setRespawnPosition(lobby.dimension(), new BlockPos(lx, ly, lz), yaw, true, false);
                 msgTo(p, "§7对局结束，已送回出生点");
+                restoreMatchHealth(p);   // ★ v1.1.0：结束恢复原版 20 血
             }
 
             for (ServerPlayer p : online) {
+                // ★ v1.0.6：cleaningUp=true 时 leave() 会直接 return，
+                // 这里显式清背包 + 恢复生存，避免「带着武器出对局」
+                clearLoadoutOnLeave(p);
                 leave(p);
             }
             protectUntilTick.clear();
@@ -1062,6 +1085,7 @@ public class TeamCompetitionMap extends BaseMap {
 
         getMapTeams().getPlayerData(player).ifPresent(d -> d.setLiving(true));
         player.setGameMode(GameType.ADVENTURE);
+        applyMatchHealth(player);   // ★ v1.1.0：复活后仍是 40 血且补满
         healFull(player);
         sendToTeamSpawn(player, true);
 
@@ -1170,9 +1194,14 @@ public class TeamCompetitionMap extends BaseMap {
     @Override
     public void leave(ServerPlayer player) {
         super.leave(player);
+        restoreMatchHealth(player);   // ★ v1.1.0：离队恢复原版 20 血
         if (cleaningUp) return;
         // ★ v67：入队即清空背包 + 切冒险模式（需求四的三处触发之一）
         resetPlayerInventory(player);
+        try {
+            player.setGameMode(GameType.SURVIVAL);
+        } catch (RuntimeException ignored) {
+        }
         ServerLevel lobby = lobbyLevel();
         int lx = lobbyX.get();
         int ly = lobbyY.get();
@@ -1235,6 +1264,70 @@ public class TeamCompetitionMap extends BaseMap {
         return loadoutAllowSwitchInMatch.get();
     }
 
+    /**
+     * v1.0.6：离开对局/对局结束时的收尾。
+     * 清空背包（含枪）+ 从冒险/旁观恢复成生存，保证不能把对局武器带出去。
+     */
+    private void clearLoadoutOnLeave(ServerPlayer player) {
+        if (player == null) return;
+        restoreMatchHealth(player);   // ★ v1.1.0：离场恢复原版 20 血
+        try {
+            LoadoutManager.resetInventory(player);   // 清空 + 冒险
+        } catch (RuntimeException e) {
+            LOGGER.warn("[TDM] {} 离场清背包失败：{}", player.getName().getString(), e.toString());
+        }
+        try {
+            if (player.isDeadOrDying()) {
+                player.setGameMode(GameType.SURVIVAL);
+                player.respawn();
+            } else {
+                player.setGameMode(GameType.SURVIVAL);
+            }
+            LOGGER.info("[TDM] {} 已离场：背包已清空，模式恢复生存", player.getName().getString());
+        } catch (RuntimeException e) {
+            LOGGER.warn("[TDM] {} 恢复生存失败：{}", player.getName().getString(), e.toString());
+        }
+    }
+
+    /**
+     * ★ v1.1.0：对局内血量上限拉到 40 并补满。
+     *
+     * <p>用 transient 属性修饰符（不写 NBT），避免下线/重启后把 40 血带到大厅；
+     * 重复调用是幂等的（每次都先移除再加）。</p>
+     */
+    public static void applyMatchHealth(ServerPlayer player) {
+        if (player == null) return;
+        try {
+            var attr = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            if (attr == null) return;
+            attr.removeModifier(HEALTH_MODIFIER_ID);
+            attr.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                    HEALTH_MODIFIER_ID,
+                    HEALTH_MODIFIER_NAME,
+                    MATCH_MAX_HEALTH - 20.0,
+                    net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+            player.setHealth(player.getMaxHealth());
+        } catch (RuntimeException e) {
+            LOGGER.warn("[TDM] {} 设置对局血量失败：{}", player.getName().getString(), e.toString());
+        }
+    }
+
+    /** ★ v1.1.0：离场/对局结束 → 移除血量修饰符，回到原版 20 血上限。 */
+    public static void restoreMatchHealth(ServerPlayer player) {
+        if (player == null) return;
+        try {
+            var attr = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            if (attr != null) {
+                attr.removeModifier(HEALTH_MODIFIER_ID);
+            }
+            if (player.getHealth() > player.getMaxHealth()) {
+                player.setHealth(player.getMaxHealth());
+            }
+        } catch (RuntimeException e) {
+            LOGGER.warn("[TDM] {} 恢复默认血量失败：{}", player.getName().getString(), e.toString());
+        }
+    }
+
     private static void healFull(ServerPlayer player) {
         if (player == null) return;
         try {
@@ -1255,6 +1348,7 @@ public class TeamCompetitionMap extends BaseMap {
 
         LoadoutManager.resetInventory(player);
 
+        applyMatchHealth(player);   // ★ v1.1.0：进对局先拉到 40 血
         healFull(player);
         if (!loadoutEnabled.get()) return;
         LoadoutManager.giveLoadout(player, loadoutClearOnStart.get());

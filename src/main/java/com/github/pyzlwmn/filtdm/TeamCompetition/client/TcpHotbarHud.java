@@ -47,6 +47,13 @@ public class TcpHotbarHud implements IHudRenderer {
     /** 图标缩放：48 格子里 16px 原图太大，缩到 0.75。 */
     private static final float ICON_SCALE = 0.75f;
 
+    /** 当前帧不透明倍率（布局编辑器调 alpha 用）。 */
+    private static float ALPHA = 1.0f;
+
+    private static int ca(int color) {
+        return UiDraw.mulAlpha(color, ALPHA);
+    }
+
     @Override
     public void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
         if (!ClientConfig.hotbarEnabled) return;
@@ -76,6 +83,8 @@ public class TcpHotbarHud implements IHudRenderer {
 
     @Override
     public void onPlayerRender(ForgeGui gui, GuiGraphics g, float partialTick, int screenWidth, int screenHeight) {
+        // ★ v1.1.5：死亡界面显示时让位，避免和死亡信息重叠
+        if (com.github.pyzlwmn.filtdm.TeamCompetition.client.spec.DeathUiRenderer.isActive()) return;
         if (!ClientConfig.hotbarEnabled) return;
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
@@ -84,6 +93,7 @@ public class TcpHotbarHud implements IHudRenderer {
         if (mc.screen != null) return;
 
         float s = hotbarScale();
+        ALPHA = (float) ClientConfig.hotbarAlpha;
         int[] rect = hotbarRect(screenWidth, screenHeight, s);
         int px = rect[0];
         int py = rect[1];
@@ -91,7 +101,7 @@ public class TcpHotbarHud implements IHudRenderer {
         int totalH = rect[3];
 
         UiDraw.panelEx(g, px, py, totalW, totalH, 8,
-                C_BORDER, 0xE80F1620, 0xE8090E15, 0x55FFC93C);
+                ca(C_BORDER), ca(0xE80F1620), ca(0xE8090E15), ca(0x55FFC93C));
 
         var pose = g.pose();
         pose.pushPose();
@@ -108,9 +118,9 @@ public class TcpHotbarHud implements IHudRenderer {
             ItemStack stack = player.getInventory().getItem(i);
 
             UiDraw.panel(g, x, y, SLOT, SLOT, 5,
-                    sel ? C_SEL_BORDER : C_BORDER, sel ? C_SEL : C_SLOT);
+                    ca(sel ? C_SEL_BORDER : C_BORDER), ca(sel ? C_SEL : C_SLOT));
 
-            g.drawString(font, String.valueOf(i + 1), x + 3, y + 3, sel ? C_GOLD : C_DIM, false);
+            g.drawString(font, String.valueOf(i + 1), x + 3, y + 3, ca(sel ? C_GOLD : C_DIM), false);
 
             // ★ v81：图标缩小到 0.75，居中
             if (!stack.isEmpty()) {
@@ -127,15 +137,15 @@ public class TcpHotbarHud implements IHudRenderer {
                 GunAmmoClient.Ammo ammo = GunAmmoClient.of(stack);
                 if (ammo.gun()) {
                     String mag = ammo.magSize() > 0 ? ammo.mag() + "/" + ammo.magSize() : String.valueOf(ammo.mag());
-                    int color = ammo.mag() <= 0 ? C_RED : C_TEXT;
+                    int color = ca(ammo.mag() <= 0 ? C_RED : C_TEXT);
                     textScaled(g, font, mag, x + SLOT / 2f, y + 28, 0.72f, color);
 
                     if (ammo.reserve() >= 0) {
                         String reserve = ammo.reserve() >= 9999 ? "∞" : String.valueOf(ammo.reserve());
-                        textScaled(g, font, reserve, x + SLOT / 2f, y + 37, 0.6f, C_DIM);
+                        textScaled(g, font, reserve, x + SLOT / 2f, y + 37, 0.6f, ca(C_DIM));
                     }
                 } else if (stack.getCount() > 1) {
-                    textScaled(g, font, "x" + stack.getCount(), x + SLOT / 2f, y + 30, 0.72f, C_DIM);
+                    textScaled(g, font, "x" + stack.getCount(), x + SLOT / 2f, y + 30, 0.72f, ca(C_DIM));
                 }
             }
         }
