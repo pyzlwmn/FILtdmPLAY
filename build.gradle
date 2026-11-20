@@ -81,6 +81,10 @@ dependencies {
     // ===== FPSMatch 的运行时依赖（不写的话 runClient 会报 Missing mandatory dependencies）=====
     implementation('com.lowdragmc:ldlib2-forge:2.2.27+1.20.1')
     modImplementation 'icyllis.modernui:ModernUI-Forge:1.20.1-3.12.0.1'
+    // ★ v1.2.0 修正：ModernUI-Forge 只是薄壳，icyllis.modernui.* 的类实际在 Core / Markflow 里
+    // （FPSMatch 的 dependencies.gradle 也是这么声明的）——只编译期引用，运行期由 ModernUI mod 提供
+    compileOnly 'icyllis.modernui:ModernUI-Core:3.12.0'
+    compileOnly 'icyllis.modernui:ModernUI-Markflow:3.12.0'
     modRuntimeOnly 'maven.modrinth:kotlin-for-forge:4.11.0'
 
     // ★ v1.1.4：SVC 语音适配 —— 只编译期引用，运行期没装 SVC 也不影响
