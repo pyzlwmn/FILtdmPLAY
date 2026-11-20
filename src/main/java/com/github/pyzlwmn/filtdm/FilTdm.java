@@ -34,6 +34,9 @@ public class FilTdm {
 
     public static final String MODID = "filtdm";
 
+    /** 当前构建版本号：每次推送更新必须同步修改这里（与 gradle.properties 的 mod_version 保持一致） */
+    public static final String VERSION = "1.2.0";
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
@@ -53,6 +56,8 @@ public class FilTdm {
     }).build());
 
     public FilTdm() {
+        LOGGER.info("FIL Team Deathmatch v{} loaded", VERSION);
+
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         modEventBus.addListener(this::commonSetup);
