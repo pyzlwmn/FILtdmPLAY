@@ -79,7 +79,11 @@ dependencies {
     // modImplementation files('libs/fpsmatch-1.20.1-1.3.0-forge-snapshot.jar')
 
     // ===== FPSMatch 的运行时依赖（不写的话 runClient 会报 Missing mandatory dependencies）=====
-    implementation('com.lowdragmc:ldlib2-forge:2.2.27+1.20.1')
+    // ★ v1.2.0 修正：ldlib2 的 jar 里自带 jarjar 的 kotlin-stdlib-2.1.0，
+    // 它会被加载成模块 kotlin.stdlib，与 KFF 的 thedarkcolour.kotlinforforge 重复导出同一批 kotlin 包
+    // → java.lang.module.ResolutionException。这里编译用原始 jar，运行用剥掉内置 stdlib 的版本。
+    compileOnly('com.lowdragmc:ldlib2-forge:2.2.27+1.20.1')
+    runtimeOnly files('libs/ldlib2-forge-2.2.27+1.20.1-nokotlin.jar')
     modImplementation 'icyllis.modernui:ModernUI-Forge:1.20.1-3.12.0.1'
     // ★ v1.2.0 修正：ModernUI-Forge 只是薄壳，icyllis.modernui.* 的类实际在 Core / Markflow 里
     // （FPSMatch 的 dependencies.gradle 也是这么声明的）——只编译期引用，运行期由 ModernUI mod 提供
